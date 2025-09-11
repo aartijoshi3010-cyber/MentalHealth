@@ -115,7 +115,7 @@ elif choice == "📚 Resources":
     - [📞 WHO Mental Health Support](https://www.who.int/news-room/fact-sheets/detail/mental-health-strengthening-our-response)
     """)
 
-    st.image("https://i.imgur.com/rbBz8V0.png", caption="Take care of your mind 🧠", use_column_width=True)
+    st.image("https://imperfect.co.in/support-systems-nurturing-mental/  🧠", use_column_width=True)
 
 # -------------------
 # Get Help
