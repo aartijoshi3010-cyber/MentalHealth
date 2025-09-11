@@ -2,7 +2,6 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 from sqlite3 import IntegrityError
-from textblob import TextBlob
 import pandas as pd
 
 # ---------- Fancy CSS ----------
