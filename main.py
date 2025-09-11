@@ -6,7 +6,7 @@ from datetime import datetime
 # MySQL Database Connection Info
 # -----------------------------
 def get_connection():
-    return mysql.connector.connect(
+    return mysq.connect(
         host="localhost",          # change as needed
         user="root",               # your DB user
         password="yourpassword",   # your DB user password
@@ -15,7 +15,7 @@ def get_connection():
 
 # Ensure table exists
 def create_user_table():
-    conn = get_connection()
+    
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
