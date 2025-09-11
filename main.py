@@ -1,7 +1,6 @@
 import streamlit as st
 from datetime import datetime
-import mysql.connector
-import bcrypt
+
 
 # -----------------------------
 # MySQL Database Connection Info
