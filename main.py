@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
-import bcrypt
+import hashlib
+
 from datetime import datetime
 from sqlite3 import IntegrityError
 import pandas as pd
