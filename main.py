@@ -1,6 +1,12 @@
 import streamlit as st
 from datetime import datetime
-from auth import init_db, register_user, authenticate_user, get_authenticator
+
+# Must be the first Streamlit command
+st.set_page_config(page_title="MindCare - Mental Health Platform", layout="centered")
+
+st.title("🧠 MindCare")
+st.subheader("A Mental Health Support Platform")
+st.markdown("---")
 
 # Initialize DB
 init_db()
@@ -127,5 +133,8 @@ elif choice == "Get Help":
     etc.
     """)
 
+ 
 
+
+    
 
