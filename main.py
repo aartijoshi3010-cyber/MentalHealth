@@ -1,6 +1,5 @@
 import streamlit as st
 from datetime import datetime
-import mysql.connector
 
 # -----------------------------------
 # MySQL Database Connection
