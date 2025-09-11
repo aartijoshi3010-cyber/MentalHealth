@@ -1,92 +1,93 @@
 import streamlit as st
-import sqlite3
-
 from datetime import datetime
+import mysql.connector
 
-# ------------------------------------
-# Page Configuration
-# ------------------------------------
-st.set_page_config(page_title="MindCare - Mental Health Support", layout="centered")
+# -----------------------------------
+# MySQL Database Connection
+# -----------------------------------
+def get_connection():
+    return mysql.connector.connect(
+        host="localhost",        # Replace with your DB host
+        user="root",             # Replace with your DB user
+        password="yourpassword", # Replace with your DB password
+        database="mindcare_db"   # Ensure this DB exists
+    )
 
-# ------------------------------------
-# Database Setup
-# ------------------------------------
-def init_db():
-    conn = sqlite3.connect("users.db")
+def create_user_table():
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            name TEXT,
-            password_hash TEXT
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(50) UNIQUE,
+            name VARCHAR(100),
+            password_hash VARCHAR(255)
         )
-    ''')
+    """)
     conn.commit()
     conn.close()
 
 def register_user(username, name, password):
-    conn = sqlite3.connect("users.db")
+    conn = get_connection()
     cursor = conn.cursor()
-
-    # Check if username already exists
-    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+    cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
     if cursor.fetchone():
         conn.close()
         return False, "Username already exists."
 
-    # Hash the password
     hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-    cursor.execute("INSERT INTO users (username, name, password_hash) VALUES (?, ?, ?)",
+    cursor.execute("INSERT INTO users (username, name, password_hash) VALUES (%s, %s, %s)",
                    (username, name, hashed_pw))
     conn.commit()
     conn.close()
-    return True, "User registered successfully."
+    return True, "Registration successful."
 
 def authenticate_user(username, password):
-    conn = sqlite3.connect("users.db")
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT name, password_hash FROM users WHERE username = ?", (username,))
-    user = cursor.fetchone()
+    cursor.execute("SELECT name, password_hash FROM users WHERE username = %s", (username,))
+    result = cursor.fetchone()
     conn.close()
 
-    if user:
-        name, hashed_pw = user
-        if bcrypt.checkpw(password.encode(), hashed_pw):
+    if result:
+        name, stored_hash = result
+        if bcrypt.checkpw(password.encode(), stored_hash.encode() if isinstance(stored_hash, str) else stored_hash):
             return True, name
     return False, None
 
-# Initialize DB
-init_db()
+# -----------------------------------
+# Streamlit UI Setup
+# -----------------------------------
+st.set_page_config(page_title="MindCare", layout="centered")
 
-# ------------------------------------
-# Login/Signup
-# ------------------------------------
+# Initialize DB
+create_user_table()
+
+# Auth State
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
     st.session_state.name = ""
 
-auth_tab = st.sidebar.radio("Account", ["Login", "Signup", "Logout"])
+auth_mode = st.sidebar.radio("Account", ["Login", "Signup", "Logout"])
 
-if auth_tab == "Signup":
-    st.sidebar.subheader("Create a New Account")
-    new_name = st.sidebar.text_input("Full Name")
+if auth_mode == "Signup":
+    st.sidebar.subheader("Create Account")
+    new_name = st.sidebar.text_input("Your Name")
     new_username = st.sidebar.text_input("Username")
     new_password = st.sidebar.text_input("Password", type="password")
     confirm_password = st.sidebar.text_input("Confirm Password", type="password")
     if st.sidebar.button("Register"):
         if new_password != confirm_password:
-            st.sidebar.error("Passwords do not match.")
-        elif new_name and new_username and new_password:
+            st.sidebar.error("Passwords don't match.")
+        else:
             success, message = register_user(new_username, new_name, new_password)
             if success:
                 st.sidebar.success(message)
             else:
                 st.sidebar.error(message)
-        else:
-            st.sidebar.warning("Please fill in all fields.")
 
-elif auth_tab == "Login":
-    st.sidebar.subheader("Login to Your Account")
+elif auth_mode == "Login":
+    st.sidebar.subheader("Login")
     username = st.sidebar.text_input("Username")
     password = st.sidebar.text_input("Password", type="password")
     if st.sidebar.button("Login"):
@@ -96,41 +97,38 @@ elif auth_tab == "Login":
             st.session_state.name = name
             st.success(f"Welcome, {name}!")
         else:
-            st.sidebar.error("Invalid credentials.")
+            st.sidebar.error("Invalid username or password.")
 
-elif auth_tab == "Logout":
+elif auth_mode == "Logout":
     st.session_state.authenticated = False
     st.session_state.name = ""
-    st.sidebar.success("Logged out successfully.")
+    st.sidebar.success("You are now logged out.")
 
-# ------------------------------------
-# Main App Content (after login)
-# ------------------------------------
+# -----------------------------------
+# Main App (Authenticated Users)
+# -----------------------------------
 if st.session_state.authenticated:
-
     st.title("🧠 MindCare")
-    st.subheader("Welcome to your Mental Health Support System")
+    st.markdown("Welcome to your Mental Health Support System")
     st.markdown("---")
 
-    # Sidebar Navigation
     menu = ["🏠 Home", "📝 Self-Assessment", "💬 Community Chat", "📚 Resources", "📞 Get Help"]
     choice = st.sidebar.selectbox("Navigation", menu)
 
-    # Home Page
+    # Home
     if choice == "🏠 Home":
-        st.header("🏠 Welcome to MindCare")
+        st.header("Welcome to MindCare")
         st.markdown("""
-        MindCare is a mental health support platform offering:
-        - ✅ Anxiety self-assessment (GAD-7)
-        - 💬 Anonymous community chat
-        - 📚 Trusted mental health resources
-        - 📞 Emergency help contacts
+        - 🧪 Self-assess your mental well-being  
+        - 💬 Chat anonymously  
+        - 📚 Access resources  
+        - 📞 Reach out for professional help
         """)
         st.image("https://i.imgur.com/G6m9W0Z.jpg", use_column_width=True)
 
-    # Self-Assessment Page
+    # Assessment
     elif choice == "📝 Self-Assessment":
-        st.header("📝 GAD-7 Anxiety Self-Assessment")
+        st.header("GAD-7 Anxiety Test")
         questions = [
             "Feeling nervous, anxious, or on edge",
             "Not being able to stop or control worrying",
@@ -146,11 +144,10 @@ if st.session_state.authenticated:
             "More than half the days": 2,
             "Nearly every day": 3
         }
-
         scores = []
         for q in questions:
-            ans = st.radio(q, list(options.keys()), key=q)
-            scores.append(options[ans])
+            answer = st.radio(q, list(options.keys()), key=q)
+            scores.append(options[answer])
 
         if st.button("Submit Assessment"):
             total = sum(scores)
@@ -164,56 +161,50 @@ if st.session_state.authenticated:
             else:
                 st.error("🔴 Severe Anxiety – Seek professional help.")
 
-    # Community Chat Page
+    # Chat
     elif choice == "💬 Community Chat":
-        st.header("💬 Anonymous Community Chat")
+        st.header("💬 Community Chat (Anonymous)")
 
-        if "chat_history" not in st.session_state:
-            st.session_state.chat_history = []
+        if "chat" not in st.session_state:
+            st.session_state.chat = []
 
-        nickname = st.text_input("Enter a nickname (optional):")
-        msg = st.text_area("Your message")
+        nickname = st.text_input("Your nickname (optional):", key="chatname")
+        msg = st.text_area("Write your message:", key="chatmsg")
 
         if st.button("Send"):
             if msg.strip():
-                name = nickname if nickname.strip() else "Anonymous"
-                time = datetime.now().strftime("%H:%M")
-                message = f"[{time}] {name}: {msg.strip()}"
-                st.session_state.chat_history.append(message)
+                sender = nickname if nickname.strip() else "Anonymous"
+                timestamp = datetime.now().strftime("%H:%M")
+                st.session_state.chat.append(f"[{timestamp}] {sender}: {msg.strip()}")
             else:
                 st.warning("Message cannot be empty.")
 
-        st.subheader("Recent Messages")
-        for m in reversed(st.session_state.chat_history[-10:]):
-            st.write(m)
+        st.subheader("Chat History")
+        for line in reversed(st.session_state.chat[-10:]):
+            st.write(line)
 
-    # Resources Page
+    # Resources
     elif choice == "📚 Resources":
-        st.header("📚 Mental Health Resources")
+        st.header("📚 Helpful Resources")
         st.markdown("""
-        - 🧘 [Headspace – Meditation & Sleep](https://www.headspace.com/)
-        - 💬 [7 Cups – Free Chat with Listeners](https://www.7cups.com/)
-        - 📖 [Mental Health Foundation](https://www.mentalhealth.org.uk/)
-        - 🌐 [WHO Mental Health Info](https://www.who.int/teams/mental-health-and-substance-use)
+        - [Headspace](https://www.headspace.com/)
+        - [7 Cups](https://www.7cups.com/)
+        - [Mental Health Foundation](https://www.mentalhealth.org.uk/)
+        - [WHO Mental Health](https://www.who.int/teams/mental-health-and-substance-use)
         """)
-        st.image("https://i.imgur.com/rbBz8V0.png", caption="You are not alone 🧠", use_column_width=True)
+        st.image("https://i.imgur.com/rbBz8V0.png", use_column_width=True)
 
-    # Get Help Page
+    # Get Help
     elif choice == "📞 Get Help":
         st.header("📞 Talk to a Professional")
         st.markdown("""
-        If you're in crisis or need professional support:
+        - **India**: AASRA – 91-22-27546669  
+        - **USA**: 1-800-662-HELP (SAMHSA)  
+        - **UK**: Samaritans – 116 123  
+        - **Global**: [https://findahelpline.com](https://findahelpline.com)
 
-        - **India:** AASRA – 91-22-27546669  
-        - **USA:** National Helpline – 1-800-662-HELP  
-        - **UK:** Samaritans – 116 123  
-        - **Global Help:** [https://findahelpline.com](https://findahelpline.com)
-
-        📧 Email support: help@mindcare.org
-
-        ⚠️ *If you are in immediate danger, call emergency services.*
+        📧 Email us: help@mindcare.org
         """)
 
 else:
     st.warning("🔐 Please login or sign up from the sidebar to access MindCare.")
-
