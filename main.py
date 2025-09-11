@@ -1,45 +1,70 @@
+
 import streamlit as st
 import sqlite3
 
 from datetime import datetime
 
-# ------------------ CSS Styling ------------------
+# ---------- Fancy CSS ----------
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
-    html, body, [class*="css"]  {
+    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap');
+
+    html, body, [class*="css"] {
         font-family: 'Nunito', sans-serif;
-        background: linear-gradient(135deg,#a8edea,#fed6e3);
+        height: 100%;
+        background: linear-gradient(-45deg, #a8edea, #fed6e3, #f6d365, #fda085);
+        background-size: 400% 400%;
+        animation: gradientBG 15s ease infinite;
         color: #333333;
     }
+
+    @keyframes gradientBG {
+      0%{background-position:0% 50%}
+      50%{background-position:100% 50%}
+      100%{background-position:0% 50%}
+    }
+
+    .glass {
+        backdrop-filter: blur(10px);
+        background: rgba(255,255,255,0.6);
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
+        animation: fadeIn .8s ease;
+    }
+
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(10px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+
     .stButton>button {
-        background-color: #4CAF50;
+        background: linear-gradient(90deg,#4facfe,#00f2fe);
         color: white;
-        padding: 0.6em 1.2em;
+        padding: 0.8em 1.4em;
         border: none;
-        border-radius: 8px;
+        border-radius: 10px;
         font-size: 16px;
-        font-weight: 600;
+        font-weight: 700;
+        cursor: pointer;
         transition: all .3s ease;
     }
+
     .stButton>button:hover {
-        background-color: #45a049;
-        transform: scale(1.02);
+        transform: scale(1.05);
+        background: linear-gradient(90deg,#00f2fe,#4facfe);
     }
-    .card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
+
+    input, textarea {
+        border-radius: 10px !important;
     }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# ------------------ Database helpers ------------------
+# ---------- Database ----------
 def init_db():
     conn = sqlite3.connect('mh_support.db')
     c = conn.cursor()
@@ -72,7 +97,6 @@ def get_user_by_email(email):
     conn.close()
     return row
 
-# ------------------ Auth helpers ------------------
 def login(email, password):
     user = get_user_by_email(email)
     if not user:
@@ -82,7 +106,7 @@ def login(email, password):
         return {'id': user[0], 'name': name, 'email': email, 'created_at': created_at}
     return None
 
-# ------------------ Streamlit App ------------------
+# ---------- App ----------
 st.set_page_config(page_title="Mental Health Support System", page_icon="💚", layout="wide")
 init_db()
 
@@ -92,14 +116,13 @@ if 'user' not in st.session_state:
 menu = ["Login", "Sign Up"] if not st.session_state.user else ["Dashboard", "Logout"]
 choice = st.sidebar.radio("📋 Menu", menu)
 
-st.title("💚 Mental Health Support System")
+st.markdown("<h1 style='text-align:center;'>💚 Mental Health Support System</h1>", unsafe_allow_html=True)
 
-# Center the form in columns
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     if not st.session_state.user:
         if choice == "Login":
-            st.markdown("<div class='card'><h3>🔐 Login</h3>", unsafe_allow_html=True)
+            st.markdown("<div class='glass'><h3>🔐 Login</h3>", unsafe_allow_html=True)
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
             if st.button("Login"):
@@ -113,7 +136,7 @@ with col2:
             st.markdown("</div>", unsafe_allow_html=True)
 
         elif choice == "Sign Up":
-            st.markdown("<div class='card'><h3>📝 Create a New Account</h3>", unsafe_allow_html=True)
+            st.markdown("<div class='glass'><h3>📝 Create Account</h3>", unsafe_allow_html=True)
             name = st.text_input("Full Name")
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
@@ -121,7 +144,6 @@ with col2:
                 if not name or not email or not password:
                     st.error("Please fill all fields")
                 else:
-                    import sqlite3
                     try:
                         add_user(name, email, password)
                         st.success("🎉 Account created! Please log in.")
@@ -134,7 +156,7 @@ with col2:
             user = st.session_state.user
             st.markdown(
                 f"""
-                <div class='card'>
+                <div class='glass'>
                 <h3>👋 Hello, {user['name']}!</h3>
                 <p><b>Email:</b> {user['email']}<br>
                 <b>Member since:</b> {user['created_at']}</p>
@@ -143,18 +165,21 @@ with col2:
                 unsafe_allow_html=True
             )
 
-            st.subheader("📝 Mood Log")
+            st.markdown("<div class='glass'><h3>📝 Mood Log</h3>", unsafe_allow_html=True)
             mood = st.text_area("How are you feeling today?")
             if st.button("Save Mood"):
                 st.info("Mood logging feature can be implemented here.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-            st.subheader("📚 Helpful Resources")
+            st.markdown("<div class='glass'><h3>📚 Helpful Resources</h3>", unsafe_allow_html=True)
             st.markdown(
                 """
-                - [National Mental Health Helpline (India): 1800-599-0019](https://www.mohfw.gov.in)
-                - [WHO Mental Health Resources](https://www.who.int/health-topics/mental-health)
-                - [Calm App](https://www.calm.com/)
+                - 🌐 [National Mental Health Helpline (India): 1800-599-0019](https://www.mohfw.gov.in)  
+                - 🌐 [WHO Mental Health Resources](https://www.who.int/health-topics/mental-health)  
+                - 🌐 [Calm App](https://www.calm.com/)  
                 """)
+            st.markdown("</div>", unsafe_allow_html=True)
+
         elif choice == "Logout":
             st.session_state.user = None
             st.experimental_rerun()
