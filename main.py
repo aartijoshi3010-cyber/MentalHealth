@@ -136,5 +136,5 @@ elif choice == "📞 Get Help":
 
     st.warning("⚠️ If you are in immediate danger, contact emergency services.")
 
----
+
 
