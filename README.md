@@ -1,0 +1,1 @@
+To build a complete Mental Health Support Platform, you need a well-organized project folder (system) with essential files and directories. Below is a suggested project structure and the content of each important file, assuming you're using Streamlit + Python as the base (as per earlier messages).
