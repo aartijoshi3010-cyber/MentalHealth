@@ -162,7 +162,7 @@ elif choice == "Login":
         user = login_user(email, hashed_pw)
         if user:
             st.session_state.user = user
-            st.experimental_rerun()
+           
         else:
             st.error("Invalid email or password.")
 
