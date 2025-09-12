@@ -1,170 +1,198 @@
-# frontend.py
 import streamlit as st
-import requests
-import pandas as pd
-from datetime import datetime
+import sqlite3
+import hashlib
 
-# try importing plotly, but continue even if it's missing
-try:
-    import plotly.express as px
-    PLOTLY_AVAILABLE = True
-except Exception as _e:
-    px = None
-    PLOTLY_AVAILABLE = False
-    PLOTLY_IMPORT_ERROR = str(_e)
+# ============= Database Setup ==============
+def init_db():
+    conn = sqlite3.connect("mental_health.db")
+    c = conn.cursor()
+    c.execute("""CREATE TABLE IF NOT EXISTS users (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 name TEXT,
+                 email TEXT UNIQUE,
+                 password TEXT
+                 )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS moods (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 user_id INTEGER,
+                 mood TEXT,
+                 notes TEXT
+                 )""")
+    conn.commit()
+    conn.close()
 
-API_URL = "http://127.0.0.1:5000"  # change if backend runs elsewhere
+def add_user(name, email, password):
+    conn = sqlite3.connect("mental_health.db")
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO users (name,email,password) VALUES (?,?,?)",
+                  (name, email, password))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
 
-st.set_page_config(page_title="🧠 Mental Health Support", page_icon="🧠", layout="wide")
+def login_user(email, password):
+    conn = sqlite3.connect("mental_health.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE email=? AND password=?",
+              (email, password))
+    user = c.fetchone()
+    conn.close()
+    return user
 
-# --- CSS ---
+def save_mood(user_id, mood, notes):
+    conn = sqlite3.connect("mental_health.db")
+    c = conn.cursor()
+    c.execute("INSERT INTO moods (user_id,mood,notes) VALUES (?,?,?)",
+              (user_id, mood, notes))
+    conn.commit()
+    conn.close()
+
+def get_user_moods(user_id):
+    conn = sqlite3.connect("mental_health.db")
+    c = conn.cursor()
+    c.execute("SELECT mood,notes FROM moods WHERE user_id=?", (user_id,))
+    moods = c.fetchall()
+    conn.close()
+    return moods
+
+# ============= UI Setup ==============
+st.set_page_config(page_title="Mental Health Support System",
+                   page_icon="🧠",
+                   layout="centered")
+
+# ---- Custom CSS ----
 st.markdown("""
     <style>
-        body { background: linear-gradient(to bottom right, #E8F0FF, #F9F9F9); }
-        .stButton>button { background-color: #4CAF50; color: white; padding: 0.5em 2em; border-radius: 12px; border: none; font-weight: bold; }
-        .stButton>button:hover { background-color: #45a049; transform: scale(1.02); }
-        .main-title { font-size: 2.2rem; text-align: center; color: #2E86C1; margin-bottom: 0.2rem; }
-        .subtitle { text-align: center; font-size: 1rem; color: #555; margin-bottom: 1.2rem; }
-        .card { padding: 1rem; border-radius: 12px; background: rgba(255,255,255,0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+        /* Global background */
+        .stApp {
+            background: linear-gradient(135deg, #f9f9f9, #e6f7ff);
+        }
+
+        /* Sidebar */
+        section[data-testid="stSidebar"] {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        section[data-testid="stSidebar"] * {
+            color: white !important;
+        }
+
+        /* Buttons */
+        div.stButton > button {
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 8px;
+            border: none;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease-in-out;
+            font-weight: bold;
+        }
+        div.stButton > button:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+
+        /* Inputs */
+        input, textarea, select {
+            border-radius: 6px !important;
+            border: 1px solid #4CAF50 !important;
+        }
+
+        /* Headings */
+        h1, h2, h3, h4 {
+            color: #4CAF50;
+        }
+
+        /* Mood cards */
+        .mood-card {
+            background-color: #ffffff;
+            border-left: 6px solid #4CAF50;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 1rem;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='main-title'>🧠 Mental Health Support System</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>Track your mood, reflect, and grow 🌱</div>", unsafe_allow_html=True)
+st.markdown(
+    "<h1 style='text-align:center;'>🧠 Mental Health Support System</h1>",
+    unsafe_allow_html=True
+)
 
-# warn user if plotly is missing
-if not PLOTLY_AVAILABLE:
-    st.warning("Optional package `plotly` is not installed — interactive charts will fall back to simpler visuals. "
-               "Install with `pip install plotly` if you want the fancier chart. "
-               f"(Import error: {PLOTLY_IMPORT_ERROR})")
+init_db()
 
-# Sidebar navigation
-st.sidebar.title("Navigation")
-menu = st.sidebar.radio("Go to:", ["🔐 Login", "📝 Sign Up", "📊 Mood Tracker"])
-
+# Session state to store user
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# Helper: perform safe requests with friendly messages
-def safe_post(path, json):
-    try:
-        r = requests.post(f"{API_URL}{path}", json=json, timeout=6)
-        return r
-    except requests.exceptions.RequestException as e:
-        st.error(f"Network error: {e}")
-        return None
+menu = ["Home", "Sign Up", "Login"]
+if st.session_state.user:
+    menu = ["Dashboard", "Logout"]
 
-def safe_get(path):
-    try:
-        r = requests.get(f"{API_URL}{path}", timeout=6)
-        return r
-    except requests.exceptions.RequestException as e:
-        st.error(f"Network error: {e}")
-        return None
+choice = st.sidebar.selectbox("Menu", menu)
 
-# --- Sign Up ---
-if menu == "📝 Sign Up":
-    st.header("📝 Create a new account")
-    with st.form(key="signup"):
-        name = st.text_input("Full Name 👤")
-        email = st.text_input("Email 📧")
-        password = st.text_input("Password 🔒", type="password")
-        submitted = st.form_submit_button("Sign Up")
-    if submitted:
-        if not (name and email and password):
-            st.warning("Please fill all fields")
+if choice == "Home":
+    st.write("Welcome! Please sign up or login to track your moods.")
+
+elif choice == "Sign Up":
+    st.subheader("Create a new account")
+    name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    pw = st.text_input("Password", type="password")
+    if st.button("Sign Up"):
+        hashed_pw = hashlib.sha256(pw.encode()).hexdigest()
+        if add_user(name, email, hashed_pw):
+            st.success("✅ Account created! You can login now.")
         else:
-            res = safe_post("/signup", json={"name": name, "email": email, "password": password})
-            if res:
-                if res.status_code == 201:
-                    st.success("✅ Account created! You can now log in.")
-                else:
-                    try:
-                        st.error("⚠️ " + res.json().get("error", "Sign up failed"))
-                    except Exception:
-                        st.error(f"Sign up failed (status {res.status_code})")
+            st.error("⚠️ Email already exists.")
 
-# --- Login ---
-elif menu == "🔐 Login":
-    st.header("🔐 Login to your account")
-    with st.form(key="login"):
-        email = st.text_input("Email 📧")
-        password = st.text_input("Password 🔒", type="password")
-        submitted = st.form_submit_button("Login")
-    if submitted:
-        if not (email and password):
-            st.warning("Please fill both email and password")
+elif choice == "Login":
+    st.subheader("Login to your account")
+    email = st.text_input("Email")
+    pw = st.text_input("Password", type="password")
+    if st.button("Login"):
+        hashed_pw = hashlib.sha256(pw.encode()).hexdigest()
+        user = login_user(email, hashed_pw)
+        if user:
+            st.session_state.user = user
+            st.experimental_rerun()
         else:
-            res = safe_post("/login", json={"email": email, "password": password})
-            if res:
-                if res.status_code == 200:
-                    st.session_state.user = res.json()
-                    st.success(f"👋 Welcome back, {st.session_state.user['name']}!")
-                else:
-                    try:
-                        st.error("⚠️ " + res.json().get("error", "Login failed"))
-                    except Exception:
-                        st.error(f"Login failed (status {res.status_code})")
+            st.error("Invalid email or password.")
 
-# --- Mood Tracker ---
-elif menu == "📊 Mood Tracker":
-    if not st.session_state.user:
-        st.warning("Please login first.")
-    else:
-        st.header("📖 Log your current mood")
-        with st.form(key="mood"):
-            mood = st.text_area("How are you feeling today? ✍️")
-            submitted = st.form_submit_button("Save Mood")
-        if submitted:
-            if not mood.strip():
-                st.warning("Please type something before saving.")
-            else:
-                res = safe_post("/mood", json={
-                    "user_id": st.session_state.user["id"],
-                    "mood_text": mood.strip()
-                })
-                if res and res.status_code == 201:
-                    st.success("✅ Mood saved!")
-                # else error messages already shown by safe_post/safe handling
+elif choice == "Dashboard" and st.session_state.user:
+    st.success(f"Welcome, {st.session_state.user[1]} 👋")
 
-        # Show history
-        st.subheader("📈 Your Mood History")
-        res = safe_get(f"/mood/{st.session_state.user['id']}")
-        if res and res.status_code == 200:
-            data = res.json()
-            if data:
-                df = pd.DataFrame(data)
-                # parse time
-                try:
-                    df['created_at'] = pd.to_datetime(df['created_at'])
-                except Exception:
-                    # fallback: treat as string
-                    df['created_at'] = df['created_at'].astype(str)
-                st.markdown("<div class='card'>", unsafe_allow_html=True)
-                st.dataframe(df, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+    # Moods with emojis
+    mood_options = [
+        "😃 Happy",
+        "😢 Sad",
+        "😰 Anxious",
+        "😐 Neutral",
+        "🤩 Excited",
+        "😴 Tired",
+        "😡 Angry"
+    ]
 
-                # Aggregate counts per day (numeric trend that doesn't require sentiment)
-                try:
-                    df['date'] = pd.to_datetime(df['created_at']).dt.date
-                    counts = df.groupby('date').size().reset_index(name='count')
-                    counts = counts.sort_values('date')
-                    counts['date_str'] = counts['date'].astype(str)
-                except Exception:
-                    counts = None
+    mood = st.selectbox("How are you feeling today?", mood_options)
+    notes = st.text_area("Any notes you want to add?")
+    if st.button("Save Mood"):
+        save_mood(st.session_state.user[0], mood, notes)
+        st.success("Mood saved successfully! ✅")
 
-                if counts is not None and not counts.empty:
-                    st.subheader("📊 Mood Entries Per Day")
-                    if PLOTLY_AVAILABLE:
-                        # interactive bar chart with plotly
-                        fig = px.bar(counts, x='date_str', y='count',
-                                     labels={'date_str':'Date','count':'Number of entries'},
-                                     title='Mood entries per day')
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        # fallback simple chart
-                        st.line_chart(counts.set_index('date')['count'])
-                else:
-                    st.info("Not enough data to show a trend chart.")
-            else:
-                st.info("No moods logged yet.")
+    st.write("### Your Past Moods")
+    moods = get_user_moods(st.session_state.user[0])
+    for m, n in moods[::-1]:
+        st.markdown(
+            f"<div class='mood-card'><b>{m}</b><br><b>Notes:</b> {n}</div>",
+            unsafe_allow_html=True)
+
+elif choice == "Logout":
+    st.session_state.user = None
+    st.experimental_rerun()
