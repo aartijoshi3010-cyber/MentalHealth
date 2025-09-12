@@ -195,4 +195,4 @@ elif choice == "Dashboard" and st.session_state.user:
 
 elif choice == "Logout":
     st.session_state.user = None
-    st.experimental_rerun()
+    
