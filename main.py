@@ -200,12 +200,8 @@ if choice == "Home":
                     hashed = hash_password(li_password)
                    
                     
-                        st.session_state.user = user
-                        st.success(f"Welcome back, {user['name']}!")
-                        st.experimental_rerun()
-                    else:
-                        st.error("Invalid email or password.")
-
+                        
+                      
 # -----------------------------
 # DASHBOARD (logged-in)
 # -----------------------------
