@@ -300,5 +300,34 @@ elif choice == "Resources":
     - UK: Samaritans 116 123  
     - If you are in immediate danger call your local emergency number.
     """)
-    st.markdown("--
+    st.markdown("--")
+t.markdown("### Download your mood data")
+    if st.session_state.user:
+        moods = get_moods(st.session_state.user['id'])
+        if moods:
+            df_export = pd.DataFrame(moods, columns=["Mood","Notes","Created"])
+            csv = df_export.to_csv(index=False).encode('utf-8')
+            st.download_button("Download mood CSV", csv, "my_moods.csv", "text/csv")
+        else:
+            st.info("No mood data to download yet.")
+    else:
+        st.info("Log in to download your data.")
+
+elif choice == "Export Data":
+    if st.session_state.user:
+        st.header("Export Data")
+        moods = get_moods(st.session_state.user['id'])
+        if moods:
+            df_export = pd.DataFrame(moods, columns=["Mood","Notes","Created"])
+            csv = df_export.to_csv(index=False).encode('utf-8')
+            st.download_button("Download all moods CSV", csv, "moods.csv", "text/csv")
+        else:
+            st.info("No data available.")
+    else:
+        st.info("Login required.")
+
+elif choice == "Logout":
+    st.session_state.user = None
+    st.success("Logged out.")
+    st.experimental_rerun()
 
