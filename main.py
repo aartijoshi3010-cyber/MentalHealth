@@ -1,6 +1,9 @@
+
 import streamlit as st
 import sqlite3
 import hashlib
+import pandas as pd
+import matplotlib.pyplot as plt
 
 # ============= Database Setup ==============
 def init_db():
@@ -62,29 +65,17 @@ def get_user_moods(user_id):
 # ============= UI Setup ==============
 st.set_page_config(page_title="Mental Health Support System",
                    page_icon="🧠",
-                   layout="centered")
+                   layout="wide")
 
-# ---- Custom CSS ----
+# ---- Custom CSS (light background, no green) ----
 st.markdown("""
     <style>
-        /* Global background */
         .stApp {
-            background: linear-gradient(135deg, #f9f9f9, #e6f7ff);
+            background: linear-gradient(135deg, #ffffff, #f2f6ff);
         }
-
-        /* Sidebar */
-        section[data-testid="stSidebar"] {
-            background-color: #4CAF50;
-            color: white;
-        }
-
-        section[data-testid="stSidebar"] * {
-            color: white !important;
-        }
-
         /* Buttons */
         div.stButton > button {
-            background-color: #4CAF50;
+            background-color: #6C63FF;
             color: white;
             border-radius: 8px;
             border: none;
@@ -93,83 +84,75 @@ st.markdown("""
             font-weight: bold;
         }
         div.stButton > button:hover {
-            background-color: #45a049;
+            background-color: #5548c8;
             transform: scale(1.05);
         }
-
         /* Inputs */
         input, textarea, select {
             border-radius: 6px !important;
-            border: 1px solid #4CAF50 !important;
+            border: 1px solid #6C63FF !important;
         }
-
-        /* Headings */
-        h1, h2, h3, h4 {
-            color: #4CAF50;
+        h1, h2, h3 {
+            color: #6C63FF;
         }
-
-        /* Mood cards */
         .mood-card {
             background-color: #ffffff;
-            border-left: 6px solid #4CAF50;
+            border-left: 6px solid #6C63FF;
             padding: 10px;
             border-radius: 8px;
             margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            font-size: 1rem;
         }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown(
-    "<h1 style='text-align:center;'>🧠 Mental Health Support System</h1>",
-    unsafe_allow_html=True
-)
-
 init_db()
 
-# Session state to store user
 if "user" not in st.session_state:
     st.session_state.user = None
 
-menu = ["Home", "Sign Up", "Login"]
-if st.session_state.user:
-    menu = ["Dashboard", "Logout"]
-
+menu = ["Home", "Dashboard", "Logout"] if st.session_state.user else ["Home"]
 choice = st.sidebar.selectbox("Menu", menu)
 
 if choice == "Home":
-    st.write("Welcome! Please sign up or login to track your moods.")
+    # Hero section: left image, right sign-up/login
+    left_col, right_col = st.columns([1, 1])
+    with left_col:
+        st.image("https://images.unsplash.com/photo-1606761560599-712f06a4c09b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=60",
+                 caption="", use_column_width=True)
+        st.markdown("<h2>Track Your Moods & Wellbeing</h2>", unsafe_allow_html=True)
+        st.write("A simple, private place to note your feelings each day.")
+    with right_col:
+        tab1, tab2 = st.tabs(["Sign Up", "Login"])
 
-elif choice == "Sign Up":
-    st.subheader("Create a new account")
-    name = st.text_input("Full Name")
-    email = st.text_input("Email")
-    pw = st.text_input("Password", type="password")
-    if st.button("Sign Up"):
-        hashed_pw = hashlib.sha256(pw.encode()).hexdigest()
-        if add_user(name, email, hashed_pw):
-            st.success("✅ Account created! You can login now.")
-        else:
-            st.error("⚠️ Email already exists.")
+        with tab1:
+            st.subheader("Create a new account")
+            name = st.text_input("Full Name")
+            email = st.text_input("Email")
+            pw = st.text_input("Password", type="password")
+            if st.button("Sign Up"):
+                hashed_pw = hashlib.sha256(pw.encode()).hexdigest()
+                if add_user(name, email, hashed_pw):
+                    st.success("✅ Account created! You can login now.")
+                else:
+                    st.error("⚠️ Email already exists.")
 
-elif choice == "Login":
-    st.subheader("Login to your account")
-    email = st.text_input("Email")
-    pw = st.text_input("Password", type="password")
-    if st.button("Login"):
-        hashed_pw = hashlib.sha256(pw.encode()).hexdigest()
-        user = login_user(email, hashed_pw)
-        if user:
-            st.session_state.user = user
-           
-        else:
-            st.error("Invalid email or password.")
+        with tab2:
+            st.subheader("Login to your account")
+            email2 = st.text_input("Email", key="login_email")
+            pw2 = st.text_input("Password", type="password", key="login_pw")
+            if st.button("Login"):
+                hashed_pw = hashlib.sha256(pw2.encode()).hexdigest()
+                user = login_user(email2, hashed_pw)
+                if user:
+                    st.session_state.user = user
+                    st.experimental_rerun()
+                else:
+                    st.error("Invalid email or password.")
 
 elif choice == "Dashboard" and st.session_state.user:
     st.success(f"Welcome, {st.session_state.user[1]} 👋")
 
-    # Moods with emojis
     mood_options = [
         "😃 Happy",
         "😢 Sad",
@@ -189,10 +172,21 @@ elif choice == "Dashboard" and st.session_state.user:
     st.write("### Your Past Moods")
     moods = get_user_moods(st.session_state.user[0])
     for m, n in moods[::-1]:
-        st.markdown(
-            f"<div class='mood-card'><b>{m}</b><br><b>Notes:</b> {n}</div>",
-            unsafe_allow_html=True)
+        st.markdown(f"<div class='mood-card'><b>{m}</b><br><b>Notes:</b> {n}</div>",
+                    unsafe_allow_html=True)
+
+    # Chart of mood counts
+    if moods:
+        df = pd.DataFrame(moods, columns=["Mood", "Notes"])
+        mood_counts = df["Mood"].value_counts()
+        st.write("### Mood Frequency Chart")
+        fig, ax = plt.subplots()
+        mood_counts.plot(kind="bar", ax=ax)
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Mood")
+        ax.set_title("Your Mood History")
+        st.pyplot(fig)
 
 elif choice == "Logout":
     st.session_state.user = None
-    
+    st.experimental_rerun()
