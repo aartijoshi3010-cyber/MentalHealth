@@ -71,7 +71,7 @@ def login_user(email: str, password_hashed: str) -> Optional[dict]:
     email = normalize_email(email)
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT id,name,email,created_at FROM users WHERE email=? AND password=?", (email, password_hashed))
+  
     row = c.fetchone()
     conn.close()
     if row:
@@ -198,7 +198,7 @@ if choice == "Home":
                     st.error("Please provide both email and password.")
                 else:
                     hashed = hash_password(li_password)
-                    user = login_user(li_email, hashed)
+                   
                     if user:
                         st.session_state.user = user
                         st.success(f"Welcome back, {user['name']}!")
