@@ -138,7 +138,7 @@ if choice=="Home":
                 u=login_user(e2,hashed)
                 if u:
                     st.session_state.user=u
-                    st.experimental_rerun()
+                   
                 else:
                     st.error("Invalid credentials.")
 
