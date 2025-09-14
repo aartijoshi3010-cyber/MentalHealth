@@ -199,7 +199,7 @@ if choice == "Home":
                 else:
                     hashed = hash_password(li_password)
                    
-                    if user:
+                    
                         st.session_state.user = user
                         st.success(f"Welcome back, {user['name']}!")
                         st.experimental_rerun()
