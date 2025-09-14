@@ -1,5 +1,5 @@
 
-  # app.py
+# app.py
 import streamlit as st
 import sqlite3
 import hashlib
@@ -13,120 +13,122 @@ DB_PATH = "mental_health.db"
 # -----------------------------
 # Database helpers
 # -----------------------------
+def get_conn():
+    # allow usage across Streamlit reruns/threads safely
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
+
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            email TEXT UNIQUE,
-            password TEXT,
-            created_at TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS moods (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            mood TEXT,
-            notes TEXT,
-            created_at TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS habits (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            habit TEXT,
-            date TEXT,
-            done INTEGER
-        )
-    """)
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                email TEXT UNIQUE,
+                password TEXT,
+                created_at TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS moods (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                mood TEXT,
+                notes TEXT,
+                created_at TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS habits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                habit TEXT,
+                date TEXT,
+                done INTEGER
+            )
+        """)
+        conn.commit()
 
 def normalize_email(email: str) -> str:
     return email.strip().lower()
 
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
 def add_user(name: str, email: str, password_hashed: str) -> Tuple[bool, Optional[str]]:
     email = normalize_email(email)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
     try:
-        c.execute(
-            "INSERT INTO users (name,email,password,created_at) VALUES (?,?,?,?)",
-            (name.strip(), email, password_hashed, datetime.utcnow().isoformat())
-        )
-        conn.commit()
+        with get_conn() as conn:
+            c = conn.cursor()
+            c.execute(
+                "INSERT INTO users (name,email,password,created_at) VALUES (?,?,?,?)",
+                (name.strip(), email, password_hashed, datetime.utcnow().isoformat())
+            )
+            conn.commit()
         return True, None
     except sqlite3.IntegrityError:
         return False, "An account with that email already exists."
     except Exception as e:
         return False, str(e)
-    finally:
-        conn.close()
 
 def login_user(email: str, password_hashed: str) -> Optional[dict]:
     email = normalize_email(email)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-  
-    row = c.fetchone()
-    conn.close()
-    if row:
-        return {'id': row[0], 'name': row[1], 'email': row[2], 'created_at': row[3]}
-    return None
+    try:
+        with get_conn() as conn:
+            c = conn.cursor()
+            c.execute("SELECT id,name,email,created_at FROM users WHERE email=? AND password=?", (email, password_hashed))
+            row = c.fetchone()
+        if row:
+            return {'id': row[0], 'name': row[1], 'email': row[2], 'created_at': row[3]}
+        return None
+    except Exception:
+        return None
 
 def save_mood(user_id: int, mood: str, notes: str):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    c.execute("INSERT INTO moods (user_id,mood,notes,created_at) VALUES (?,?,?,?)",
-              (user_id, mood, notes, now))
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        c = conn.cursor()
+        now = datetime.utcnow().isoformat()
+        c.execute("INSERT INTO moods (user_id,mood,notes,created_at) VALUES (?,?,?,?)", (user_id, mood, notes, now))
+        conn.commit()
 
 def get_moods(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT mood,notes,created_at FROM moods WHERE user_id=? ORDER BY created_at ASC", (user_id,))
-    rows = c.fetchall()
-    conn.close()
-    return rows  # list of tuples (mood, notes, created_at)
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT mood,notes,created_at FROM moods WHERE user_id=? ORDER BY created_at ASC", (user_id,))
+        return c.fetchall()
 
 def add_habit(user_id: int, habit: str, habit_date: str, done: int = 0):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("INSERT INTO habits (user_id,habit,date,done) VALUES (?,?,?,?)", (user_id, habit, habit_date, done))
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO habits (user_id,habit,date,done) VALUES (?,?,?,?)", (user_id, habit, habit_date, done))
+        conn.commit()
 
 def get_habits(user_id: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT id,habit,date,done FROM habits WHERE user_id=? ORDER BY date DESC", (user_id,))
-    rows = c.fetchall()
-    conn.close()
-    return rows  # list of tuples
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id,habit,date,done FROM habits WHERE user_id=? ORDER BY date DESC", (user_id,))
+        return c.fetchall()
 
 def set_habit_done(habit_id: int, done: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE habits SET done=? WHERE id=?", (done, habit_id))
-    conn.commit()
-    conn.close()
-
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("UPDATE habits SET done=? WHERE id=?", (done, habit_id))
+        conn.commit()
 
 # -----------------------------
-# Streamlit UI
+# App initialization
 # -----------------------------
 st.set_page_config(page_title="Mental Health Platform", page_icon="🧠", layout="wide")
 init_db()
 
-# Basic styling
+# small debug info (uncomment to help debug)
+# with get_conn() as conn:
+#     tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+# st.sidebar.write("DB tables:", tables)
+
+# -----------------------------
+# Styling
+# -----------------------------
 st.markdown("""
 <style>
 .stApp { background: linear-gradient(135deg, #ffffff, #f4f6ff); }
@@ -138,16 +140,14 @@ div.stButton > button {
 div.stButton > button:hover { transform: scale(1.03); }
 section[data-testid="stSidebar"] { background: linear-gradient(180deg,#6C63FF,#9A8CFF); color: white; }
 section[data-testid="stSidebar"] * { color: white !important; }
-.card { background: #ffffff; border-radius:12px; padding:14px; box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
 .mood-card { background:#fff; border-left:6px solid #6C63FF; padding:10px; border-radius:8px; margin-bottom:8px; }
 </style>
 """, unsafe_allow_html=True)
 
-# Title
 st.markdown("<h1 style='text-align:center; color:#3b2fdb;'>🧠 Mental Health Support Platform</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center; color:#444;'>Private self-tracking & resources — sign up and get started.</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#444;'>Privacy-first tracker — sign up and get started.</p>", unsafe_allow_html=True)
 
-# Session user
+# initialize session user
 if "user" not in st.session_state:
     st.session_state.user = None
 
@@ -160,48 +160,50 @@ else:
 choice = st.sidebar.selectbox("Menu", menu_options)
 
 # -----------------------------
-# HOME: hero + signup/login
+# HOME (Signup + Login)
 # -----------------------------
 if choice == "Home":
     left, right = st.columns([2, 1])
     with left:
         st.image("https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=1200&q=80", use_column_width=True)
-        st.markdown("### A safe place to track moods, build habits and find resources.")
-        st.markdown("**Features included:** mood logging (emoji), journal notes, habit tracker, charts, CSV export, resources & hotlines.")
+        st.markdown("### A private place to log moods, build habits and find resources.")
+        st.markdown("Features: mood logging (emoji), journal notes, habit tracking, charts, CSV export, resources & hotlines.")
     with right:
-        # Signup form
-        with st.form(key="signup_form_v1"):
+        # SIGNUP form (unique keys)
+        with st.form(key="signup_form"):
             st.subheader("Create account")
             su_name = st.text_input("Full name", key="su_name")
             su_email = st.text_input("Email", key="su_email")
             su_password = st.text_input("Password", type="password", key="su_pw")
-            submitted_signup = st.form_submit_button("Sign up")
-            if submitted_signup:
+            submit_signup = st.form_submit_button("Sign up")
+            if submit_signup:
                 if not su_name.strip() or not su_email.strip() or not su_password:
                     st.error("Please fill all fields.")
                 else:
-                    hashed = hash_password(su_password)
-                    ok, err = add_user(su_name, su_email, hashed)
+                    ok, err = add_user(su_name, su_email, hash_password(su_password))
                     if ok:
-                        st.success("Account created! Now log in using the Login form below.")
+                        st.success("Account created — please login below.")
                     else:
                         st.error(err)
 
-        # Login form
-        with st.form(key="login_form_v1"):
+        # LOGIN form (unique keys)
+        with st.form(key="login_form"):
             st.subheader("Login")
             li_email = st.text_input("Email", key="li_email")
             li_password = st.text_input("Password", type="password", key="li_pw")
-            submitted_login = st.form_submit_button("Login")
-            if submitted_login:
+            submit_login = st.form_submit_button("Login")
+            if submit_login:
                 if not li_email.strip() or not li_password:
-                    st.error("Please provide both email and password.")
+                    st.error("Please enter both email and password.")
                 else:
-                    hashed = hash_password(li_password)
-                   
-                    
-                        
-                      
+                    user = login_user(li_email, hash_password(li_password))
+                    if user:
+                        st.session_state.user = user
+                        st.success(f"Welcome back, {user['name']}!")
+                        st.experimental_rerun()
+                    else:
+                        st.error("Invalid email or password.")
+
 # -----------------------------
 # DASHBOARD (logged-in)
 # -----------------------------
@@ -211,59 +213,55 @@ elif choice == "Dashboard" and st.session_state.user:
     st.write(f"Member since: {user.get('created_at','-')}")
 
     left, right = st.columns([2, 1])
-
-    # LEFT column: mood + journal + add habit
+    # Left: mood & habit forms
     with left:
         st.subheader("Log Mood & Journal")
         mood_options = ["😃 Happy","😢 Sad","😰 Anxious","😐 Neutral","🤩 Excited","😴 Tired","😡 Angry"]
-        with st.form(key="mood_form_v1"):
-            mood = st.selectbox("How are you feeling?", mood_options, key="mood_select_v1")
-            notes = st.text_area("Notes / Journal entry (optional)", key="mood_notes_v1", height=120)
+        with st.form(key="mood_form"):
+            mood = st.selectbox("How are you feeling?", mood_options, key="mood_select")
+            notes = st.text_area("Notes / Journal (optional)", key="mood_notes", height=120)
             submit_mood = st.form_submit_button("Save Mood")
             if submit_mood:
-                if not mood:
-                    st.warning("Select a mood first.")
-                else:
+                if mood:
                     save_mood(user['id'], mood, notes or "")
                     st.success("Mood saved ✅")
+                else:
+                    st.warning("Choose a mood first.")
 
         st.markdown("---")
         st.subheader("Add Habit")
-        with st.form(key="habit_form_v1"):
-            habit_name = st.text_input("Habit name (e.g., Meditate)", key="habit_name_v1")
-            habit_date = st.date_input("Date", value=date.today(), key="habit_date_v1")
+        with st.form(key="habit_form"):
+            habit_name = st.text_input("Habit name (e.g., Meditate)", key="habit_name")
+            habit_date = st.date_input("Date", value=date.today(), key="habit_date")
             submit_habit = st.form_submit_button("Add Habit")
             if submit_habit:
-                if not habit_name.strip():
-                    st.error("Please enter a habit name.")
-                else:
+                if habit_name.strip():
                     add_habit(user['id'], habit_name.strip(), habit_date.isoformat(), 0)
                     st.success("Habit added ✅")
+                else:
+                    st.error("Enter a habit name.")
 
         st.markdown("---")
         st.subheader("Your Mood History")
         moods = get_moods(user['id'])
         if not moods:
-            st.info("No moods logged yet — record your first mood above.")
+            st.info("No moods yet — log your first mood above.")
         else:
-            # show most recent first
             for mood_text, notes_text, created in reversed(moods):
-                # created stored as ISO string; display as readable
                 try:
                     dt_display = datetime.fromisoformat(created).strftime("%Y-%m-%d %H:%M")
                 except Exception:
                     dt_display = created
                 st.markdown(f"<div class='mood-card'><b>{mood_text}</b>  •  <small>{dt_display}</small><br><i>{notes_text}</i></div>", unsafe_allow_html=True)
 
-    # RIGHT column: quick stats & habits
+    # Right: stats & habits
     with right:
         st.subheader("Quick Stats")
         moods = get_moods(user['id'])
         if moods:
             df_moods = pd.DataFrame(moods, columns=["Mood","Notes","Created"])
-            # convert datetime
             df_moods["Created"] = pd.to_datetime(df_moods["Created"], errors="coerce")
-            # Frequency bar chart
+
             st.markdown("**Mood frequency**")
             freq = df_moods["Mood"].value_counts()
             fig1, ax1 = plt.subplots(figsize=(3.2,2.2))
@@ -275,7 +273,6 @@ elif choice == "Dashboard" and st.session_state.user:
             st.pyplot(fig1)
             plt.close(fig1)
 
-            # Timeline chart (map canonical moods)
             st.markdown("**Mood timeline**")
             canonical = ["😃 Happy","😢 Sad","😰 Anxious","😐 Neutral","🤩 Excited","😴 Tired","😡 Angry"]
             mood_to_num = {m:i for i,m in enumerate(canonical)}
@@ -298,18 +295,14 @@ elif choice == "Dashboard" and st.session_state.user:
         if not habits:
             st.info("No habits yet.")
         else:
-            # show habits with toggles
             for habit_row in habits:
                 hid, hname, hdate, hdone = habit_row
                 cols = st.columns([3,1])
                 cols[0].markdown(f"**{hname}**  \n<small>{hdate}</small>", unsafe_allow_html=True)
                 cb_key = f"habit_cb_{hid}"
-                # show checkbox with current value
                 checked = cols[1].checkbox("Done", value=bool(hdone), key=cb_key)
-                # if changed - update DB
                 if checked != bool(hdone):
                     set_habit_done(hid, int(checked))
-                    # rerun to show updated state
                     st.experimental_rerun()
 
 # -----------------------------
